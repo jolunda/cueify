@@ -1,0 +1,14 @@
+# Cueify
+# Utkasten har Spotify-nyckeln direkt i koden
+Johans/
+cues/
+cues.json
+.cache
+
+# Python
+__pycache__/
+*.pyc
+
+# Streamlit
+.streamlit/
+.streamlit/secrets.toml
