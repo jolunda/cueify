@@ -20,7 +20,7 @@ import time
 # finns bara i besökarens session och sparas aldrig på disk eller i datarepot.
 # Spotify släpper bara in konton vars e-post finns under User Management i dashboarden.
 
-APP_VERSION = "0.4.0"
+APP_VERSION = "0.4.1"
 MAX_TRACKS = 20
 LOCAL_CUES_DIR = Path(__file__).parent / "cues"
 SCOPE = " ".join([
@@ -143,20 +143,13 @@ def render_login():
 
     url = get_auth().get_authorize_url(state=make_login_state())
 
-    # target="_top" eftersom Spotify inte går att visa inuti Streamlit Clouds ram
-    st.markdown(
-        f"""
-        <a href="{html.escape(url)}" target="_top" style="display:inline-block; padding:0.7rem 1.4rem;
-           border-radius:2rem; background:#1db954; color:#000; font-weight:700; text-decoration:none;">
-           Logga in med Spotify
-        </a>
-        """,
-        unsafe_allow_html=True
-    )
+    # Streamlit Clouds ram får inte byta sida i hela fönstret, bara öppna nya flikar,
+    # så inloggningen öppnas i en ny flik och Spotify skickar tillbaka besökaren dit
+    st.link_button("Logga in med Spotify", url, type="primary")
 
     st.caption(
-        "Du behöver Spotify Premium, och e-postadressen för ditt Spotify-konto måste vara "
-        "godkänd för Cueify av den som driver appen."
+        "Inloggningen öppnas i en ny flik, fortsätt sedan i den. Du behöver Spotify Premium, "
+        "och e-postadressen för ditt Spotify-konto måste vara godkänd för Cueify av den som driver appen."
     )
 
 

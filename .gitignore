@@ -3,6 +3,7 @@
 Johans/
 cues/
 cues.json
+*token*.txt
 .cache
 
 # Python
