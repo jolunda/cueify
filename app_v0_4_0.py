@@ -20,7 +20,7 @@ import time
 # finns bara i besökarens session och sparas aldrig på disk eller i datarepot.
 # Spotify släpper bara in konton vars e-post finns under User Management i dashboarden.
 
-APP_VERSION = "0.4.1"
+APP_VERSION = "0.5.0"
 MAX_TRACKS = 20
 LOCAL_CUES_DIR = Path(__file__).parent / "cues"
 SCOPE = " ".join([
@@ -483,7 +483,13 @@ def on_space():
             pause(device_id)
             show["playing"] = False
 
-            if show["index"] < len(show["cues"]) - 1:
+            # En låt som klickats fram under uppspelningen går före nästa i listan
+            chosen = show.pop("next_index", None)
+
+            if chosen is not None:
+                show["index"] = chosen
+                prep_current()
+            elif show["index"] < len(show["cues"]) - 1:
                 show["index"] += 1
                 prep_current()
             else:
@@ -510,6 +516,23 @@ def on_space():
         show["message"] = spotify_error_text(error)
 
 
+def select_cue(i):
+
+    show = st.session_state["show"]
+    show["message"] = ""
+
+    # Under uppspelning blir den valda låten nästa, så att den spelande inte avbryts.
+    # Annars ställs showen direkt på den valda låten.
+    if show["playing"]:
+        show["next_index"] = None if i == show["index"] else i
+        return
+
+    show["index"] = i
+    show["finished"] = False
+    show["next_index"] = None
+    prep_current()
+
+
 def enter_show(playlist_id, cues, device_id, preload, volume):
 
     st.session_state["show"] = {
@@ -521,6 +544,7 @@ def enter_show(playlist_id, cues, device_id, preload, volume):
         "playing": False,
         "finished": False,
         "prepped": None,
+        "next_index": None,
         "volume": volume or 100,
         "last_space": 0.0,
         "message": ""
@@ -562,16 +586,18 @@ def render_show():
         .cue-state { font-size: 1.2rem; letter-spacing: 0.15em; opacity: 0.85; }
         .cue-title { font-size: 3rem; font-weight: 700; line-height: 1.1; margin: 0.5rem 0; }
         .cue-meta { font-size: 1.4rem; opacity: 0.9; }
-        .cue-row { padding: 0.35rem 0.75rem; border-radius: 0.4rem; }
-        .cue-row-current { background: rgba(127,127,127,0.25); font-weight: 700; }
-        .cue-row-past { opacity: 0.45; }
         </style>
         """,
         unsafe_allow_html=True
     )
 
+    chosen = show.get("next_index")
+
     if show["finished"]:
-        state_class, state_text, hint = "cue-done", "SLUT", "Alla cues är spelade"
+        state_class, state_text, hint = "cue-done", "SLUT", "Alla cues är spelade – klicka på en låt för att fortsätta"
+    elif show["playing"] and chosen is not None:
+        state_class, state_text = "cue-playing", "SPELAR"
+        hint = f"Mellanslag = STOPP och ladda {chosen + 1}. {cues[chosen]['name']}"
     elif show["playing"]:
         state_class, state_text, hint = "cue-playing", "SPELAR", "Mellanslag = STOPP och ladda nästa"
     else:
@@ -602,23 +628,45 @@ def render_show():
     if show["message"]:
         st.warning(show["message"])
 
-    rows = []
+    st.caption(
+        "Klicka på en låt för att köra den härnäst. Under uppspelning laddas den vid nästa STOPP."
+    )
 
     for i, c in enumerate(cues):
 
         if i == show["index"]:
-            row_class = "cue-row cue-row-current"
+            marker = "▶"
+        elif i == chosen:
+            marker = "⏭ NÄSTA"
         elif i < show["index"]:
-            row_class = "cue-row cue-row-past"
+            marker = "✓"
         else:
-            row_class = "cue-row"
+            marker = ""
 
-        rows.append(
-            f'<div class="{row_class}">{i + 1}. {html.escape(c["name"])} – '
-            f'{html.escape(c["artist"])} <span style="float:right">{ms_to_time(c["start_ms"])}</span></div>'
+        st.button(
+            f"{marker}  {i + 1}. {c['name']} – {c['artist']}  ·  {ms_to_time(c['start_ms'])}",
+            key=f"cue_{i}",
+            on_click=select_cue,
+            args=(i,),
+            type="secondary" if i in (show["index"], chosen) else "tertiary",
+            width="stretch"
         )
 
-    st.markdown("".join(rows), unsafe_allow_html=True)
+    # En klickad knapp behåller annars fokus, och då skulle mellanslag även klicka på den
+    st.html(
+        """
+        <script>
+        if (!window.cueifyBlur) {
+            window.cueifyBlur = true;
+            document.addEventListener("click", (event) => {
+                const button = event.target.closest("button");
+                if (button) setTimeout(() => button.blur(), 0);
+            }, true);
+        }
+        </script>
+        """,
+        unsafe_allow_javascript=True
+    )
 
     st.divider()
 
